@@ -1,5 +1,7 @@
 # Agent Rules
 
+> This repository is a fork of [vercel-labs/portless](https://github.com/vercel-labs/portless) published as `@variablelab/portless`. The rules below are upstream's and still apply, with two exceptions: releases follow [docs/RELEASING.md](./docs/RELEASING.md) (fork changelog in `CHANGELOG.fork.md`, no docs-site changelog entry), and upstream changes are pulled in per [docs/SYNCING.md](./docs/SYNCING.md). Keep the diff against upstream small.
+
 ## Package Manager
 
 Use `pnpm` for all package management commands (not npm or yarn).
