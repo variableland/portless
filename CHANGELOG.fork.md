@@ -2,9 +2,20 @@
 
 Release notes for `@variablelab/portless`. Upstream's own history is in [CHANGELOG.md](./CHANGELOG.md).
 
-## 0.0.1
+## 0.0.2
 
 <!-- release:start -->
+
+Based on upstream [portless v0.15.6](https://github.com/vercel-labs/portless/releases/tag/v0.15.6) (upstream `main` at `1ad573b`), unchanged since 0.0.1.
+
+### Changed
+
+- Releases are published through npm trusted publishing (GitHub OIDC) instead of a long-lived token. This release is the first to use it.
+- Fixed the `contributors` entry in `package.json` so npm shows the maintainer's name and profile url correctly.
+
+<!-- release:end -->
+
+## 0.0.1
 
 First release of the fork, based on upstream [portless v0.15.6](https://github.com/vercel-labs/portless/releases/tag/v0.15.6) (upstream `main` at `1ad573b`).
 
@@ -16,5 +27,3 @@ First release of the fork, based on upstream [portless v0.15.6](https://github.c
 
 - Published as `@variablelab/portless`. The installed command is still `portless`.
 - The npm tarball now includes `LICENSE` and `NOTICE`.
-
-<!-- release:end -->
