@@ -10,9 +10,14 @@ Pushing a new version to `main` is what publishes. There is no separate approval
 
 ## One-time setup
 
-- Create an npm granular access token with publish rights on the `@variablelab` scope and "bypass two-factor authentication" enabled (npm requires this for publishes from CI). Add it to the repository as the `NPM_TOKEN` secret under Settings, Secrets and variables, Actions.
-- The publish job runs in the `Release` GitHub environment. GitHub creates it on the first run. Add required reviewers to that environment if you want a manual gate before every publish.
-- Alternative: configure [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) for `variableland/portless` with the `release.yml` workflow, then delete the `NODE_AUTH_TOKEN` line from the publish step. Provenance works with either method.
+- Publishing uses [npm trusted publishing](https://docs.npmjs.com/trusted-publishers): the `@variablelab/portless` package on npm trusts the `release.yml` workflow of `variableland/portless` running in the `Release` environment, and the job exchanges its GitHub OIDC token for a short-lived npm token. No long-lived token is stored. To re-create the relationship (interactive 2FA):
+
+  ```bash
+  npm trust github @variablelab/portless --file release.yml --repo variableland/portless --env Release --allow-publish
+  ```
+
+- The `Release` GitHub environment exists. Add required reviewers there if you want a manual gate before every publish.
+- The `NPM_TOKEN` secret used for the first release (0.0.1) is no longer read by the workflow. Revoke it on npmjs.com and delete the secret after the first successful OIDC publish.
 
 ## Cut a release
 
