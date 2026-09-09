@@ -131,6 +131,9 @@ import {
 import type { ManifestEntry } from "./turbo.js";
 import { buildServiceUninstallSudoArgs, handleService, tryUninstallService } from "./service.js";
 
+/** npm package name of this fork. The installed command is still `portless`. */
+const PACKAGE_NAME = "@variablelab/portless";
+
 const chalk = colors;
 
 // ---------------------------------------------------------------------------
@@ -395,13 +398,13 @@ function getEntryScript(): string {
 
 /**
  * Check whether portless is installed as a project dependency by walking
- * up from cwd looking for node_modules/portless. Used to distinguish a
+ * up from cwd looking for the package under node_modules. Used to distinguish a
  * local `npx portless` (allowed) from a one-off download (blocked).
  */
 function isLocallyInstalled(): boolean {
   let dir = process.cwd();
   for (;;) {
-    if (fs.existsSync(path.join(dir, "node_modules", "portless", "package.json"))) {
+    if (fs.existsSync(path.join(dir, "node_modules", ...PACKAGE_NAME.split("/"), "package.json"))) {
       return true;
     }
     const parent = path.dirname(dir);
@@ -1924,8 +1927,8 @@ Eliminates port conflicts, memorizing port numbers, and cookie/storage
 clashes by giving each dev server a stable .localhost URL.
 
 ${colors.bold("Install:")}
-  ${colors.cyan("npm install -g portless")}          Global (recommended)
-  ${colors.cyan("npm install -D portless")}          Project dev dependency
+  ${colors.cyan(`npm install -g ${PACKAGE_NAME}`)}   Global (recommended)
+  ${colors.cyan(`npm install -D ${PACKAGE_NAME}`)}   Project dev dependency
 
 ${colors.bold("Requirements:")}
   Node.js 24+
@@ -4445,8 +4448,8 @@ async function main() {
   if ((isNpx || isPnpmDlx) && !isLocallyInstalled()) {
     console.error(colors.red("Error: portless should not be run via npx or pnpm dlx."));
     console.error(colors.blue("Install globally or as a project dependency:"));
-    console.error(colors.cyan("  npm install -g portless"));
-    console.error(colors.cyan("  npm install -D portless"));
+    console.error(colors.cyan(`  npm install -g ${PACKAGE_NAME}`));
+    console.error(colors.cyan(`  npm install -D ${PACKAGE_NAME}`));
     process.exit(1);
   }
 

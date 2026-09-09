@@ -1,0 +1,27 @@
+@variablelab/portless
+Fork maintained by Ricardo Q. Bazan (rcrd) <ricardo@variable.land>
+https://github.com/variableland/portless
+
+This product is a fork of portless, created by Vercel Labs.
+
+    portless
+    Copyright 2025 Vercel Inc.
+    https://github.com/vercel-labs/portless
+    Licensed under the Apache License, Version 2.0
+
+The original LICENSE file is preserved unchanged in this repository and in
+the published npm package. All credit for portless itself belongs to Vercel
+Labs and the upstream contributors.
+
+Changes made in this fork, licensed under the same Apache License, Version 2.0:
+
+  - Path-based routing: the `--path <prefix>` flag, the `PORTLESS_PATH`
+    environment variable, and the `path` field in portless.json. Written by
+    Ricardo Q. Bazan and proposed to the upstream project in
+    https://github.com/vercel-labs/portless/pull/165.
+  - Packaging metadata so the fork can be published to npm as
+    @variablelab/portless, plus fork-specific documentation, changelog, and
+    release workflow.
+
+The exact set of modified files is visible with
+`git diff upstream/main...main` in this repository (see docs/SYNCING.md).
