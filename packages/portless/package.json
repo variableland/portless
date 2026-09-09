@@ -1,7 +1,7 @@
 {
-  "name": "portless",
-  "version": "0.15.6",
-  "description": "Replace port numbers with stable, named .localhost URLs. For humans and agents.",
+  "name": "@variablelab/portless",
+  "version": "0.0.1",
+  "description": "Fork of vercel-labs/portless with path-based routing (--path). Replace port numbers with stable, named .localhost URLs and route several apps under one hostname by URL prefix.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -15,8 +15,12 @@
     "portless": "./dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "NOTICE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=24"
   },
@@ -30,7 +34,7 @@
     "dev": "tsup --watch",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
-    "prepublishOnly": "cp ../../README.md . && pnpm build",
+    "prepublishOnly": "cp ../../README.md ../../LICENSE ../../NOTICE . && pnpm build",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
@@ -40,17 +44,31 @@
     "local",
     "development",
     "proxy",
-    "localhost"
+    "localhost",
+    "path-based-routing",
+    "reverse-proxy",
+    "dev-server",
+    "https",
+    "monorepo",
+    "portless"
   ],
   "author": "Vercel Labs",
+  "contributors": [
+    {
+      "name": "Ricardo (rcrd)",
+      "email": "ricardo@variable.land",
+      "url": "https://github.com/variableland/portless"
+    }
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/vercel-labs/portless.git"
+    "url": "git+https://github.com/variableland/portless.git",
+    "directory": "packages/portless"
   },
-  "homepage": "https://portless.sh",
+  "homepage": "https://github.com/variableland/portless#readme",
   "bugs": {
-    "url": "https://github.com/vercel-labs/portless/issues"
+    "url": "https://github.com/variableland/portless/issues"
   },
   "devDependencies": {
     "@types/node": "^24.12.4",
