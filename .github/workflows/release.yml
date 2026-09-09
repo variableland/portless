@@ -34,7 +34,7 @@ jobs:
           LOCAL_VERSION=$(node -p "require('./packages/portless/package.json').version")
           echo "Local version: $LOCAL_VERSION"
 
-          NPM_VERSION=$(npm view portless version 2>/dev/null || echo "0.0.0")
+          NPM_VERSION=$(npm view @variablelab/portless version 2>/dev/null || echo "0.0.0")
           echo "npm version: $NPM_VERSION"
 
           if [ "$LOCAL_VERSION" != "$NPM_VERSION" ]; then
@@ -96,6 +96,8 @@ jobs:
       - name: Publish to npm
         run: npm publish --provenance
         working-directory: packages/portless
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   github-release:
     name: Create GitHub Release
@@ -115,11 +117,11 @@ jobs:
       - name: Extract changelog entry
         run: |
           VERSION="${{ needs.check-release.outputs.version }}"
-          awk '/<!-- release:start -->/{found=1; next} /<!-- release:end -->/{found=0} found{print}' CHANGELOG.md > /tmp/release-notes.md
+          awk '/<!-- release:start -->/{found=1; next} /<!-- release:end -->/{found=0} found{print}' CHANGELOG.fork.md > /tmp/release-notes.md
 
           LINES=$(wc -l < /tmp/release-notes.md | tr -d ' ')
           if [ "$LINES" -lt 2 ]; then
-            echo "Error: No release notes found between <!-- release:start --> and <!-- release:end --> markers in CHANGELOG.md"
+            echo "Error: No release notes found between <!-- release:start --> and <!-- release:end --> markers in CHANGELOG.fork.md"
             exit 1
           fi
           echo "Extracted release notes for $VERSION ($LINES lines)"
