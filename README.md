@@ -1,5 +1,13 @@
 # portless
 
+> **This is a fork.** `@variablelab/portless` is [vercel-labs/portless](https://github.com/vercel-labs/portless) plus path-based routing: the `--path` flag, `PORTLESS_PATH`, and the `path` config field, so several apps can share one hostname and be dispatched by URL prefix. That feature is proposed upstream in [PR #165](https://github.com/vercel-labs/portless/pull/165) and is pending review; this package exists so it can be used in the meantime. Everything else is upstream portless, created and maintained by Vercel Labs (see [NOTICE](./NOTICE)). The fork tracks upstream `main` (see [docs/SYNCING.md](./docs/SYNCING.md)) and keeps its own [changelog](./CHANGELOG.fork.md).
+>
+> ```bash
+> npm install -g @variablelab/portless
+> ```
+>
+> The installed command is `portless`, the same as upstream, so run `npm uninstall -g portless` first if you have the upstream package installed globally. Jump to [Path-based routing](#path-based-routing) for the fork-specific docs.
+
 Replace port numbers with stable, named .localhost URLs for local development. For humans and agents.
 
 ```diff
@@ -218,19 +226,94 @@ Put `portless run` in your `package.json` once and it works everywhere. The main
 
 ## Path-based routing
 
-Route multiple apps under one hostname by URL path:
+This is the feature added by this fork (upstream [PR #165](https://github.com/vercel-labs/portless/pull/165)).
+
+Route several apps under one hostname by URL path prefix. Each app registers the same name with a different `--path`, and the proxy picks the app whose prefix matches the request:
 
 ```bash
-portless myapp vite dev                  # serves /
-portless myapp --path /api pnpm start    # serves /api/*
-portless myapp --path /docs next dev     # serves /docs/*
+portless myapp vite dev                  # https://myapp.localhost       serves /
+portless myapp --path /api pnpm start    # https://myapp.localhost/api   serves /api/*
+portless myapp --path /docs next dev     # https://myapp.localhost/docs  serves /docs/*
 ```
 
-The proxy uses longest-prefix matching to dispatch requests. The full request path is forwarded to the backend unchanged — `--path /api` does not strip `/api` before proxying, so your app must serve its routes under that prefix (or set a base path). Useful for local API gateways, microfrontends, monorepos, or any setup where services share a domain and route by path.
+Useful for local API gateways, microfrontends, and monorepos where services share a domain in production and route by path.
 
-Also available via environment variable: `PORTLESS_PATH=/api`, or per app in `portless.json` (`"path": "/api"`).
+### How requests are matched
 
-Tailscale and ngrok tunnels dial the app's port directly, bypassing the proxy's path dispatch; since the path is never stripped, the shared URL printed for a `--path` app includes the prefix.
+1. The proxy first selects the routes whose hostname matches the request, exactly as before.
+2. Among those, it keeps the routes whose prefix matches the request path and picks the longest one.
+3. A route registered without `--path` is the root catch-all for that hostname. If there is no root route and nothing else matches, the proxy answers 404 and lists the active routes with their prefixes.
+
+A prefix only matches at a `/` boundary: `/api` matches `/api` and `/api/users` but not `/api-v2` or `/apiary`. The check is `pathname === prefix || pathname.startsWith(prefix + "/")` (`matchesPathPrefix` in `packages/portless/src/proxy.ts`).
+
+Given these routes on `myapp.localhost`:
+
+| Registered with             | Request                | Served by                                        |
+| --------------------------- | ---------------------- | ------------------------------------------------ |
+| no `--path`                 | `/`, `/about`          | the root app                                     |
+| `--path /settings`          | `/settings`            | the settings app                                 |
+| `--path /settings`          | `/settings/profile`    | the settings app                                 |
+| `--path /settings/advanced` | `/settings/advanced/x` | the advanced app (longest prefix wins)           |
+| `--path /settings`          | `/settings-v2`         | the root app, or 404 when there is no root route |
+
+Wildcard subdomains (`--wildcard`) go through the same longest-prefix selection. Tailscale URLs skip it, since a tailnet URL identifies exactly one route.
+
+### The path is forwarded unchanged
+
+`--path /api` does not strip `/api` before proxying. The backend receives `/api/users`, not `/users`, so it must serve its routes under that prefix. Most frameworks have a setting for this (`basePath` in Next.js, `base` in Vite). This mirrors how the app would be mounted behind a real gateway, so nothing changes between local and production.
+
+### Prefix syntax
+
+Prefixes are normalized by `normalizePathPrefix` in `packages/portless/src/utils.ts`:
+
+- A leading `/` is added and a trailing `/` removed: `settings` and `/settings/` both become `/settings`.
+- `/` and an empty value mean no prefix, which is the root route.
+- Allowed characters are letters, digits, `/`, `.`, `_`, and `-`. `/api/v2.0` is valid; `/set tings` is rejected.
+- Empty segments (`/api//v1`) and `..` segments (`/api/../etc`) are rejected.
+
+An invalid value makes portless exit with an error before the command starts.
+
+### Where to set it
+
+The prefix can come from three places, from highest to lowest precedence:
+
+1. The `--path` flag on `portless run` or `portless <name>`.
+2. The `PORTLESS_PATH` environment variable, for example `PORTLESS_PATH=/api portless run pnpm start`.
+3. The `path` field in `portless.json`, or in the `"portless"` key of `package.json`.
+
+When bare `portless` starts every workspace package from a monorepo root, only per-app `path` entries apply. `PORTLESS_PATH` is ignored there because one global prefix would be ambiguous across apps.
+
+Monorepo example with one hostname for the web app and the API:
+
+```json
+{
+  "apps": {
+    "apps/web": { "name": "myapp" },
+    "apps/api": { "name": "myapp", "path": "/api" }
+  }
+}
+```
+
+```bash
+portless   # from the repo root: https://myapp.localhost and https://myapp.localhost/api
+```
+
+Two apps with the same name and the same prefix conflict, just as two apps with the same name did before. Use `--force` to take over the route.
+
+### Static routes and lookups
+
+`alias`, `get`, and `list` understand prefixes, so services outside portless (a Docker container, for example) can join a shared hostname:
+
+```bash
+portless alias myapp 8080 --path /api      # static route for myapp.localhost/api
+portless alias --remove myapp --path /api  # remove only that prefix
+portless get myapp --path /api             # prints https://myapp.localhost/api
+portless list                              # shows myapp.localhost/api next to myapp.localhost
+```
+
+### Tunnels
+
+Tailscale and ngrok tunnels dial the app's port directly, bypassing the proxy's path dispatch. Since the path is never stripped, the shared URL printed for a `--path` app includes the prefix, for example `https://devbox.ts.net/api`.
 
 ## Custom TLD
 
