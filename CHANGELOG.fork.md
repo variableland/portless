@@ -2,9 +2,19 @@
 
 Release notes for `@variablelab/portless`. Upstream's own history is in [CHANGELOG.md](./CHANGELOG.md).
 
-## 0.0.2
+## 0.0.3
 
 <!-- release:start -->
+
+Based on upstream [portless v0.15.6](https://github.com/vercel-labs/portless/releases/tag/v0.15.6) (upstream `main` at `1ad573b`), the same base as 0.0.2.
+
+### Fixed
+
+- **Wildcard subdomains go to the closest registered parent**: with `--wildcard`, when several registered hostnames are parents of a request (for example `acme.localhost` and `feat-x.acme.localhost` for `tenant.feat-x.acme.localhost`), the closest one now serves it regardless of registration order, and a longer `--path` prefix on a farther parent no longer takes the request from it. If the closest parent has no route for the path, the proxy answers 404 instead of falling through to a farther parent. Upstream issue [vercel-labs/portless#380](https://github.com/vercel-labs/portless/issues/380), fixed in [#4](https://github.com/variableland/portless/pull/4).
+
+<!-- release:end -->
+
+## 0.0.2
 
 Based on upstream [portless v0.15.6](https://github.com/vercel-labs/portless/releases/tag/v0.15.6) (upstream `main` at `1ad573b`), unchanged since 0.0.1.
 
@@ -12,8 +22,6 @@ Based on upstream [portless v0.15.6](https://github.com/vercel-labs/portless/rel
 
 - Releases are published through npm trusted publishing (GitHub OIDC) instead of a long-lived token. This release is the first to use it.
 - Fixed the `contributors` entry in `package.json` so npm shows the maintainer's name and profile url correctly.
-
-<!-- release:end -->
 
 ## 0.0.1
 
