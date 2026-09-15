@@ -267,6 +267,49 @@ describe("createProxyServer", () => {
       expect(res.body).toBe("exact");
     });
 
+    it("routes a wildcard subdomain to the most specific registered parent regardless of route order", async () => {
+      const parentBackend = trackServer(
+        http.createServer((_req, res) => {
+          res.writeHead(200, { "Content-Type": "text/plain" });
+          res.end("parent");
+        })
+      );
+      await listen(parentBackend);
+      const parentAddr = parentBackend.address() as net.AddressInfo;
+
+      const nestedBackend = trackServer(
+        http.createServer((_req, res) => {
+          res.writeHead(200, { "Content-Type": "text/plain" });
+          res.end("nested");
+        })
+      );
+      await listen(nestedBackend);
+      const nestedAddr = nestedBackend.address() as net.AddressInfo;
+
+      const parent: RouteInfo = { hostname: "acme.localhost", port: parentAddr.port };
+      const nested: RouteInfo = { hostname: "api.acme.localhost", port: nestedAddr.port };
+      let routes: RouteInfo[] = [parent, nested];
+      const server = trackServer(
+        createProxyServer({
+          getRoutes: () => routes,
+          proxyPort: TEST_PROXY_PORT,
+          strict: false,
+        })
+      );
+      await listen(server);
+
+      const res = await request(server, { host: "admin.api.acme.localhost" });
+      expect(res.body).toBe("nested");
+
+      routes = [nested, parent];
+      const reversedRes = await request(server, { host: "admin.api.acme.localhost" });
+      expect(reversedRes.body).toBe("nested");
+
+      // The farther parent still owns the subdomains the nested route does not cover
+      const parentRes = await request(server, { host: "admin.acme.localhost" });
+      expect(parentRes.body).toBe("parent");
+    });
+
     it("returns 404 when subdomain does not match any route", async () => {
       const routes: RouteInfo[] = [{ hostname: "myapp.localhost", port: 4001 }];
       const server = trackServer(
@@ -779,6 +822,99 @@ describe("createProxyServer", () => {
 
         const res = await request(server, { host: "tenant.app.localhost", path: "/settings/foo" });
         expect(res.body).toBe("wildcard-path");
+      });
+
+      it("prefers the most specific wildcard parent over a longer path prefix on a farther parent", async () => {
+        const parentSettingsBackend = trackServer(
+          http.createServer((_req, res) => {
+            res.writeHead(200);
+            res.end("parent-settings");
+          })
+        );
+        await listen(parentSettingsBackend);
+        const parentSettingsAddr = parentSettingsBackend.address() as net.AddressInfo;
+
+        const worktreeBackend = trackServer(
+          http.createServer((_req, res) => {
+            res.writeHead(200);
+            res.end("worktree");
+          })
+        );
+        await listen(worktreeBackend);
+        const worktreeAddr = worktreeBackend.address() as net.AddressInfo;
+
+        const routes: RouteInfo[] = [
+          { hostname: "app.localhost", port: parentSettingsAddr.port, pathPrefix: "/settings" },
+          { hostname: "feat-x.app.localhost", port: worktreeAddr.port },
+        ];
+        const server = trackServer(
+          createProxyServer({
+            getRoutes: () => routes,
+            proxyPort: TEST_PROXY_PORT,
+            strict: false,
+          })
+        );
+        await listen(server);
+
+        const res = await request(server, {
+          host: "tenant.feat-x.app.localhost",
+          path: "/settings/profile",
+        });
+        expect(res.body).toBe("worktree");
+
+        const parentRes = await request(server, {
+          host: "tenant.app.localhost",
+          path: "/settings/profile",
+        });
+        expect(parentRes.body).toBe("parent-settings");
+      });
+
+      it("returns 404 when the most specific wildcard parent has no route for the path", async () => {
+        const parentBackend = trackServer(
+          http.createServer((_req, res) => {
+            res.writeHead(200);
+            res.end("parent");
+          })
+        );
+        await listen(parentBackend);
+        const parentAddr = parentBackend.address() as net.AddressInfo;
+
+        const worktreeSettingsBackend = trackServer(
+          http.createServer((_req, res) => {
+            res.writeHead(200);
+            res.end("worktree-settings");
+          })
+        );
+        await listen(worktreeSettingsBackend);
+        const worktreeSettingsAddr = worktreeSettingsBackend.address() as net.AddressInfo;
+
+        const routes: RouteInfo[] = [
+          { hostname: "app.localhost", port: parentAddr.port },
+          {
+            hostname: "feat-x.app.localhost",
+            port: worktreeSettingsAddr.port,
+            pathPrefix: "/settings",
+          },
+        ];
+        const server = trackServer(
+          createProxyServer({
+            getRoutes: () => routes,
+            proxyPort: TEST_PROXY_PORT,
+            strict: false,
+          })
+        );
+        await listen(server);
+
+        // Same as an exact match: the closest parent owns the request, so a
+        // path it does not serve is a 404 instead of the farther parent's app.
+        const res = await request(server, { host: "tenant.feat-x.app.localhost", path: "/" });
+        expect(res.status).toBe(404);
+
+        const settingsRes = await request(server, {
+          host: "tenant.feat-x.app.localhost",
+          path: "/settings",
+        });
+        expect(settingsRes.body).toBe("worktree-settings");
       });
 
       it("does not crash on a malformed request-target", async () => {

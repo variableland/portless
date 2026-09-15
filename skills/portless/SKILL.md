@@ -131,7 +131,7 @@ portless api.myapp pnpm start    # https://api.myapp.localhost
 portless docs.myapp next dev     # https://docs.myapp.localhost
 ```
 
-By default, only explicitly registered subdomains are routed (strict mode). Start the proxy with `--wildcard` to allow any subdomain of a registered route to fall back to that app (e.g. `tenant1.myapp.localhost` routes to the `myapp` app). Exact matches always take priority over wildcards.
+By default, only explicitly registered subdomains are routed (strict mode). Start the proxy with `--wildcard` to allow any subdomain of a registered route to fall back to that app (e.g. `tenant1.myapp.localhost` routes to the `myapp` app). Exact matches always take priority over wildcards. When several registered routes are parents of a subdomain, the closest one wins (e.g. `tenant1.fix-ui.myapp.localhost` routes to `fix-ui.myapp`, not `myapp`), regardless of registration order.
 
 ### Git worktrees
 
@@ -157,7 +157,7 @@ portless myapp --path /api pnpm start        # serves /api/*
 portless myapp --path /docs next dev         # serves /docs/*
 ```
 
-The proxy uses longest-prefix matching. The full request path is forwarded unchanged. Useful for local API gateways, microfrontends, monorepos, or any setup where services share a domain. Also available as `PORTLESS_PATH=/api` or per app in `portless.json` (`"path": "/api"`). Tailscale/ngrok tunnels dial the app's port directly, so shared URLs for a `--path` app include the prefix.
+The proxy uses longest-prefix matching. With `--wildcard`, the closest parent hostname is chosen first and the prefix is matched only among its routes (404 if none matches). The full request path is forwarded unchanged. Useful for local API gateways, microfrontends, monorepos, or any setup where services share a domain. Also available as `PORTLESS_PATH=/api` or per app in `portless.json` (`"path": "/api"`). Tailscale/ngrok tunnels dial the app's port directly, so shared URLs for a `--path` app include the prefix.
 
 ### Bypassing portless
 

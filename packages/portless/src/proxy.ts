@@ -195,12 +195,13 @@ function normalizeAuthority(host: string): string {
 /**
  * Find the route matching a request's host (which may include a port) and URL
  * path. Match order: local hostname, tailscale authority (hostname and port),
- * tailscale hostname ignoring port, then wildcard subdomain. `strict` drops
- * the wildcard tier. Within the local-hostname and wildcard tiers, several
- * routes may share a hostname and differ only by `pathPrefix`; the longest
- * matching prefix wins and routes without a `pathPrefix` act as root
- * catch-all. Tailscale tiers skip path selection: a tailscale URL identifies
- * a single route and its requests are not path-prefixed.
+ * tailscale hostname ignoring port, then wildcard subdomain, where the closest
+ * registered parent hostname wins. `strict` drops the wildcard tier. Within
+ * the matched local or parent hostname, several routes may differ only by
+ * `pathPrefix`; the longest matching prefix wins and routes without a
+ * `pathPrefix` act as root catch-all. Tailscale tiers skip path selection: a
+ * tailscale URL identifies a single route and its requests are not
+ * path-prefixed.
  */
 function findRoute(
   routes: RouteInfo[],
@@ -237,7 +238,13 @@ function findRoute(
   if (tsHostnameMatch) return tsHostnameMatch;
 
   if (strict) return undefined;
-  return pickByPath(routes.filter((r) => hostname.endsWith("." + r.hostname.toLowerCase())));
+  // Every candidate is a dot-bounded suffix of the request hostname, so the
+  // longest one is the closest parent (and equal lengths mean the same host).
+  // It owns the request like an exact match would: path selection never falls
+  // through to a farther parent, so routes.json order cannot mix apps.
+  const parents = routes.filter((r) => hostname.endsWith("." + r.hostname.toLowerCase()));
+  const closest = Math.max(0, ...parents.map((r) => r.hostname.length));
+  return pickByPath(parents.filter((r) => r.hostname.length === closest));
 }
 
 /** Server type returned by createProxyServer (plain HTTP/1.1 or net.Server TLS wrapper). */

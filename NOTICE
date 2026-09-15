@@ -19,6 +19,10 @@ Changes made in this fork, licensed under the same Apache License, Version 2.0:
     environment variable, and the `path` field in portless.json. Written by
     Ricardo Q. Bazan and proposed to the upstream project in
     https://github.com/vercel-labs/portless/pull/165.
+  - Wildcard subdomain routing picks the closest registered parent hostname,
+    then the longest path prefix among that hostname's routes, instead of the
+    first matching route (upstream issue
+    https://github.com/vercel-labs/portless/issues/380).
   - Packaging metadata so the fork can be published to npm as
     @variablelab/portless, plus fork-specific documentation, changelog, and
     release workflow.

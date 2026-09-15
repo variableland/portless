@@ -202,7 +202,7 @@ portless docs.myapp next dev
 # -> https://docs.myapp.localhost
 ```
 
-By default, only explicitly registered subdomains are routed (strict mode). Use `--wildcard` when starting the proxy to allow any subdomain of a registered route to fall back to that app (e.g. `tenant1.myapp.localhost` routes to the `myapp` app without extra registration).
+By default, only explicitly registered subdomains are routed (strict mode). Use `--wildcard` when starting the proxy to allow any subdomain of a registered route to fall back to that app (e.g. `tenant1.myapp.localhost` routes to the `myapp` app without extra registration). When several registered routes are parents of the requested subdomain, the closest one wins: with `myapp.localhost` and `fix-ui.myapp.localhost` both running, `tenant1.fix-ui.myapp.localhost` routes to `fix-ui.myapp`, whatever order they were registered in.
 
 ## Git Worktrees
 
@@ -256,7 +256,7 @@ Given these routes on `myapp.localhost`:
 | `--path /settings/advanced` | `/settings/advanced/x` | the advanced app (longest prefix wins)           |
 | `--path /settings`          | `/settings-v2`         | the root app, or 404 when there is no root route |
 
-Wildcard subdomains (`--wildcard`) go through the same longest-prefix selection. Tailscale URLs skip it, since a tailnet URL identifies exactly one route.
+Wildcard subdomains (`--wildcard`) first pick the closest registered parent hostname and then go through the same longest-prefix selection among that hostname's routes only. A prefix registered on a farther parent never serves the request: if the closest parent has no route for the path, the proxy answers 404, as it would for an exact match. Tailscale URLs skip path selection, since a tailnet URL identifies exactly one route.
 
 ### The path is forwarded unchanged
 
