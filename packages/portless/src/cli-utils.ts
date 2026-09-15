@@ -265,6 +265,27 @@ export function killTree(
 }
 
 // ---------------------------------------------------------------------------
+// JSON output
+// ---------------------------------------------------------------------------
+
+/** Commands that accept the global --json flag. */
+export const JSON_OUTPUT_COMMANDS = ["list", "get", "doctor", "service status"] as const;
+
+/** Whether the command in `args` (global flags already stripped) supports --json. */
+export function supportsJsonOutput(args: readonly string[]): boolean {
+  const command = args[0] === "service" ? `service ${args[1] ?? ""}` : (args[0] ?? "");
+  return (JSON_OUTPUT_COMMANDS as readonly string[]).includes(command);
+}
+
+/**
+ * Print a command's --json output. Only the JSON goes to stdout, so callers
+ * send warnings and errors to stderr.
+ */
+export function printJson(value: unknown): void {
+  console.log(JSON.stringify(value, null, 2));
+}
+
+// ---------------------------------------------------------------------------
 // Port configuration
 // ---------------------------------------------------------------------------
 

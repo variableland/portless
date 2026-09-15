@@ -44,7 +44,26 @@ import {
   writeTldFile,
   writeTldsFile,
   writeTlsMarker,
+  supportsJsonOutput,
 } from "./cli-utils.js";
+
+describe("supportsJsonOutput", () => {
+  it("accepts the commands that print JSON", () => {
+    expect(supportsJsonOutput(["list"])).toBe(true);
+    expect(supportsJsonOutput(["get", "backend"])).toBe(true);
+    expect(supportsJsonOutput(["doctor"])).toBe(true);
+    expect(supportsJsonOutput(["service", "status"])).toBe(true);
+  });
+
+  it("rejects other commands and app runs", () => {
+    expect(supportsJsonOutput(["service", "install"])).toBe(false);
+    expect(supportsJsonOutput(["alias", "db", "5432"])).toBe(false);
+    expect(supportsJsonOutput(["run", "next", "dev"])).toBe(false);
+    expect(supportsJsonOutput(["myapp", "next", "dev"])).toBe(false);
+    expect(supportsJsonOutput([])).toBe(false);
+  });
+});
+
 describe("proxy listener interface", () => {
   it("uses only IPv4 and IPv6 loopback outside LAN mode", () => {
     expect(getProxyBindTargets(false)).toEqual([

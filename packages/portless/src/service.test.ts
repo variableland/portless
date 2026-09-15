@@ -918,4 +918,57 @@ describe("handleService", () => {
     expect(output).toContain("Wildcard: yes");
     expect(output).toContain("State directory: /srv/portless");
   });
+
+  it("prints service status as JSON", async () => {
+    setPlatform("linux");
+    setGetuid(0);
+    const installedSpec = buildServiceSpec({
+      platform: "linux",
+      nodePath: process.execPath,
+      entryScript: "/fake/cli.js",
+      userHome: "/home/alice",
+      installConfig: {
+        stateDir: "/srv/portless",
+        proxyPort: 8443,
+        useHttps: false,
+        lanMode: true,
+        lanIp: "192.168.1.42",
+        lanIpExplicit: true,
+        useWildcard: true,
+      },
+    });
+    if (installedSpec.platform !== "linux") throw new Error("Expected Linux service spec");
+
+    vi.mocked(existsSync).mockImplementation((file) => file === installedSpec.unitPath);
+    vi.mocked(readFileSync).mockImplementation((file) =>
+      file === installedSpec.unitPath ? installedSpec.unit : ""
+    );
+    vi.mocked(isProxyRunning).mockResolvedValueOnce(false);
+    const runner = vi.fn((command: string, args: string[]) => ({
+      status: command === "systemctl" && args[0] === "is-enabled" ? 0 : 1,
+      stdout: "",
+      stderr: "",
+    }));
+
+    await handleService(["service", "status"], {
+      entryScript: "/fake/cli.js",
+      runner,
+      json: true,
+    });
+
+    const output = logSpy.mock.calls.map((c: unknown[]) => c.join(" ")).join("\n");
+    expect(JSON.parse(output)).toEqual({
+      installed: true,
+      managerState: "installed",
+      proxyPort: 8443,
+      proxyRunning: false,
+      tls: false,
+      tlds: ["local"],
+      lanMode: true,
+      lanIp: "192.168.1.42",
+      wildcard: true,
+      stateDir: "/srv/portless",
+      serviceEntry: installedSpec.unitPath,
+    });
+  });
 });

@@ -307,6 +307,10 @@ The chosen service configuration is written into launchd, systemd, or Task Sched
 | `portless get <name>`                             | Print URL for a service (for cross-service wiring)             |
 | `portless get <name> --no-worktree`               | Print URL without worktree prefix                              |
 | `portless list`                                   | Show active routes                                             |
+| `portless list --json`                            | Print active routes as JSON (see JSON output below)            |
+| `portless get <name> --json`                      | Print the service URL and its parts as JSON                    |
+| `portless doctor --json`                          | Print the health report as JSON                                |
+| `portless service status --json`                  | Print service and proxy status as JSON                         |
 | `portless doctor`                                 | Check proxy, routes, DNS, CA trust, and LAN prerequisites      |
 | `portless trust`                                  | Add local CA to system trust store (for HTTPS)                 |
 | `portless clean`                                  | Remove state, CA trust entry, and /etc/hosts block             |
@@ -345,6 +349,13 @@ The chosen service configuration is written into launchd, systemd, or Task Sched
 | `portless --version` / `-v`                       | Show version                                                   |
 
 **Reserved names:** `run`, `get`, `alias`, `hosts`, `list`, `doctor`, `trust`, `clean`, `prune`, `proxy`, and `service` are subcommands and cannot be used as app names directly. Use `portless run <cmd>` to infer the name, or `portless --name <name> <cmd>` to force any name including reserved ones.
+
+**JSON output:** `list`, `get`, `doctor`, and `service status` accept `--json`. Other commands reject it. stdout carries only the JSON, without colors. Warnings and errors go to stderr, and a command that fails exits non-zero. Keys are camelCase and optional fields are omitted when unset.
+
+- `portless list --json`: array of the routes the proxy serves (live processes and aliases) with `hostname`, `pathPrefix`, `port`, `pid` (`0` for an alias), `alias`, `url`, and `tailscaleUrl` or `ngrokUrl` when shared. An unreadable or corrupted routes file exits 1 instead of printing `[]`.
+- `portless get <name> --json`: `name`, `hostname`, `pathPrefix`, `url`, `proxyPort`, `tls`. It does not check whether the service is running. Use `list --json` for that.
+- `portless doctor --json`: `version`, `node`, `platform`, `arch`, `stateDir`, `proxyPort`, `tls`, `tlds`, `lanMode`, `findings` (`status`, `message`, `hint`), `failures`, `warnings`. Exits 1 when a check fails.
+- `portless service status --json`: `installed`, `managerState`, `proxyPort`, `proxyRunning`, `tls`, `tlds`, `lanMode`, `lanIp`, `wildcard`, `stateDir`, `serviceEntry`.
 
 ## portless.json
 

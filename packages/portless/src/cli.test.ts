@@ -276,6 +276,233 @@ describe("CLI", () => {
       const { status } = run(["list"]);
       expect(status).toBe(0);
     });
+
+    describe("with a state directory", () => {
+      let stateDir: string;
+      let routesPath: string;
+      let proxyPort: number;
+
+      beforeEach(async () => {
+        stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "portless-list-"));
+        routesPath = path.join(stateDir, "routes.json");
+        proxyPort = await getFreePort();
+        fs.writeFileSync(path.join(stateDir, "proxy.port"), proxyPort.toString());
+        fs.writeFileSync(path.join(stateDir, "proxy.tls"), "1");
+      });
+
+      afterEach(() => {
+        fs.rmSync(stateDir, { recursive: true, force: true });
+      });
+
+      function writeRoutes(routes: unknown): void {
+        fs.writeFileSync(routesPath, JSON.stringify(routes));
+      }
+
+      function list(args: string[] = []) {
+        return run(["list", ...args], { env: { PORTLESS_STATE_DIR: stateDir } });
+      }
+
+      it("prints live routes and aliases as JSON with --json", () => {
+        writeRoutes([
+          { hostname: "myapp.localhost", port: 4001, pid: process.pid },
+          { hostname: "myapp.localhost", port: 4002, pid: process.pid, pathPrefix: "/api" },
+          { hostname: "stale.localhost", port: 4003, pid: 999999 },
+          { hostname: "db.localhost", port: 5432, pid: 0 },
+        ]);
+
+        const { status, stdout } = list(["--json"]);
+
+        expect(status).toBe(0);
+        expect(JSON.parse(stdout)).toEqual([
+          {
+            hostname: "myapp.localhost",
+            port: 4001,
+            pid: process.pid,
+            alias: false,
+            url: `https://myapp.localhost:${proxyPort}`,
+          },
+          {
+            hostname: "myapp.localhost",
+            pathPrefix: "/api",
+            port: 4002,
+            pid: process.pid,
+            alias: false,
+            url: `https://myapp.localhost:${proxyPort}/api`,
+          },
+          {
+            hostname: "db.localhost",
+            port: 5432,
+            pid: 0,
+            alias: true,
+            url: `https://db.localhost:${proxyPort}`,
+          },
+        ]);
+      });
+
+      it("includes tunnel URLs with the path prefix in --json output", () => {
+        writeRoutes([
+          {
+            hostname: "myapp.localhost",
+            port: 4001,
+            pid: process.pid,
+            pathPrefix: "/api",
+            tailscaleUrl: "https://devbox.tail1234.ts.net",
+            ngrokUrl: "https://myapp.ngrok.app",
+          },
+        ]);
+
+        const { status, stdout } = list(["--json"]);
+
+        expect(status).toBe(0);
+        expect(JSON.parse(stdout)[0]).toMatchObject({
+          tailscaleUrl: "https://devbox.tail1234.ts.net/api",
+          ngrokUrl: "https://myapp.ngrok.app/api",
+        });
+      });
+
+      it("does not write stale routes back with --json", () => {
+        writeRoutes([{ hostname: "stale.localhost", port: 4003, pid: 999999 }]);
+        const before = fs.readFileSync(routesPath, "utf-8");
+
+        const { status, stdout } = list(["--json"]);
+
+        expect(status).toBe(0);
+        expect(JSON.parse(stdout)).toEqual([]);
+        expect(fs.readFileSync(routesPath, "utf-8")).toBe(before);
+      });
+
+      it("prints an empty array with --json when no routes are registered", () => {
+        const { status, stdout } = list(["--json"]);
+
+        expect(status).toBe(0);
+        expect(JSON.parse(stdout)).toEqual([]);
+      });
+
+      it("fails with --json when the routes file is corrupted", () => {
+        fs.writeFileSync(routesPath, "not json");
+
+        const { status, stdout, stderr } = list(["--json"]);
+
+        expect(status).toBe(1);
+        expect(stdout).toBe("");
+        expect(stderr).toContain("invalid JSON");
+      });
+
+      it("fails with --json when the routes file cannot be read", () => {
+        fs.mkdirSync(routesPath);
+
+        const { status, stdout, stderr } = list(["--json"]);
+
+        expect(status).toBe(1);
+        expect(stdout).toBe("");
+        expect(stderr).toContain("Could not read routes file");
+      });
+
+      it("keeps the human-readable output without --json", () => {
+        writeRoutes([
+          { hostname: "myapp.localhost", port: 4002, pid: process.pid, pathPrefix: "/api" },
+          { hostname: "db.localhost", port: 5432, pid: 0 },
+        ]);
+
+        const { status, stdout } = list();
+
+        expect(status).toBe(0);
+        expect(stdout).toContain("Active routes:");
+        expect(stdout).toContain(`https://myapp.localhost:${proxyPort}/api  ->  localhost:4002`);
+        expect(stdout).toContain(`https://db.localhost:${proxyPort}  ->  localhost:5432  (alias)`);
+      });
+    });
+  });
+
+  describe("--json", () => {
+    let stateDir: string;
+    let proxyPort: number;
+
+    beforeEach(async () => {
+      stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "portless-json-"));
+      proxyPort = await getFreePort();
+      fs.writeFileSync(path.join(stateDir, "proxy.port"), proxyPort.toString());
+    });
+
+    afterEach(() => {
+      fs.rmSync(stateDir, { recursive: true, force: true });
+    });
+
+    function runInState(args: string[], env: Record<string, string> = {}) {
+      return run(args, { env: { PORTLESS_STATE_DIR: stateDir, ...env } });
+    }
+
+    it("is accepted before the command", () => {
+      // PORTLESS=0 keeps a regression harmless: if the flag were not stripped,
+      // "--json" would be taken as an app name and portless would start a proxy.
+      const { status, stdout } = runInState(["--json", "list"], { PORTLESS: "0" });
+
+      expect(status).toBe(0);
+      expect(JSON.parse(stdout)).toEqual([]);
+    });
+
+    it("prints the URL that get builds", () => {
+      fs.writeFileSync(path.join(stateDir, "proxy.tls"), "1");
+
+      const { status, stdout } = runInState(["get", "backend", "--no-worktree", "--json"]);
+
+      expect(status).toBe(0);
+      expect(JSON.parse(stdout)).toEqual({
+        name: "backend",
+        hostname: "backend.localhost",
+        url: `https://backend.localhost:${proxyPort}`,
+        proxyPort,
+        tls: true,
+      });
+    });
+
+    it("includes the path prefix in get output", () => {
+      const { status, stdout } = runInState([
+        "get",
+        "backend",
+        "--no-worktree",
+        "--path",
+        "/api",
+        "--json",
+      ]);
+
+      expect(status).toBe(0);
+      expect(JSON.parse(stdout)).toMatchObject({
+        pathPrefix: "/api",
+        url: `http://backend.localhost:${proxyPort}/api`,
+      });
+    });
+
+    it("prints doctor findings with the summary counts", () => {
+      const { status, stdout } = runInState(["doctor", "--json"]);
+
+      expect(status).toBe(0);
+      const report = JSON.parse(stdout);
+      expect(report).toMatchObject({ stateDir, proxyPort, tls: false, failures: 0 });
+      expect(report.findings).toContainEqual({
+        status: "warn",
+        message: `Proxy is not running on port ${proxyPort}.`,
+        hint: expect.stringContaining("portless proxy start"),
+      });
+    });
+
+    it("is rejected by commands without JSON output", () => {
+      const { status, stdout, stderr } = runInState(["alias", "db", "5432", "--json"], {
+        PORTLESS_SYNC_HOSTS: "0",
+      });
+
+      expect(status).toBe(1);
+      expect(stdout).toBe("");
+      expect(stderr).toContain("--json is only supported by");
+      expect(fs.existsSync(path.join(stateDir, "routes.json"))).toBe(false);
+    });
+
+    it("is passed through when it follows the child command", () => {
+      const { status, args } = captureBypassedExpo(["run", "expo", "start", "--json"]);
+
+      expect(status).toBe(0);
+      expect(args).toEqual(["start", "--json"]);
+    });
   });
 
   describe("doctor", () => {
