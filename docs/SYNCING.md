@@ -3,6 +3,7 @@
 This fork tracks [vercel-labs/portless](https://github.com/vercel-labs/portless). Its own commits sit on top of upstream `main`:
 
 - `feat: add --path flag for path-based routing` (the feature, upstream [PR #165](https://github.com/vercel-labs/portless/pull/165))
+- `fix(proxy): route wildcard subdomains to the closest registered parent` (upstream issue [#380](https://github.com/vercel-labs/portless/issues/380), extended to path prefixes)
 - `chore: rename package to @variablelab/portless` (packaging)
 - fork docs, `CHANGELOG.fork.md`, and the release workflow
 
@@ -43,15 +44,15 @@ Open a PR against `main`. CI runs the same steps. Merging the PR does not publis
 
 The fork touches a small set of files, so conflicts cluster there:
 
-| File                                    | Why it conflicts                                       | How to resolve                                                                |
-| --------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| `packages/portless/package.json`        | upstream bumps `version` on every release              | keep the fork's `name`, `version`, and metadata; take upstream's dependencies |
-| `packages/portless/src/cli.ts`          | flag parsing, help text, `runApp` and route helpers    | keep both: upstream's change plus the `pathPrefix` plumbing                   |
-| `packages/portless/src/proxy.ts`        | `findRoute`                                            | keep the longest-prefix selection inside whatever matching upstream has       |
-| `packages/portless/src/routes.ts`       | route identity is `(hostname, pathPrefix)` in the fork | thread `pathPrefix` through any new add, remove, or update helper             |
-| `README.md`, `skills/portless/SKILL.md` | upstream edits docs near the fork's sections           | keep the fork banner, install commands, and the path-based routing section    |
-| `turbo.json`                            | `test:e2e` depends on `@variablelab/portless#build`    | keep the scoped name                                                          |
-| `.github/workflows/release.yml`         | the fork publishes a different package                 | keep the fork's version                                                       |
+| File                                    | Why it conflicts                                       | How to resolve                                                                                                                |
+| --------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `packages/portless/package.json`        | upstream bumps `version` on every release              | keep the fork's `name`, `version`, and metadata; take upstream's dependencies                                                 |
+| `packages/portless/src/cli.ts`          | flag parsing, help text, `runApp` and route helpers    | keep both: upstream's change plus the `pathPrefix` plumbing                                                                   |
+| `packages/portless/src/proxy.ts`        | `findRoute`                                            | keep the longest-prefix selection inside whatever matching upstream has, and pick the closest wildcard parent before the path |
+| `packages/portless/src/routes.ts`       | route identity is `(hostname, pathPrefix)` in the fork | thread `pathPrefix` through any new add, remove, or update helper                                                             |
+| `README.md`, `skills/portless/SKILL.md` | upstream edits docs near the fork's sections           | keep the fork banner, install commands, and the path-based routing section                                                    |
+| `turbo.json`                            | `test:e2e` depends on `@variablelab/portless#build`    | keep the scoped name                                                                                                          |
+| `.github/workflows/release.yml`         | the fork publishes a different package                 | keep the fork's version                                                                                                       |
 
 Do not modify `CHANGELOG.md` or `LICENSE`: both stay upstream's. The fork's release notes live in `CHANGELOG.fork.md`.
 
