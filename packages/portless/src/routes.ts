@@ -209,7 +209,9 @@ export class RouteStore {
         }
       }
       return alive;
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.onWarning?.(`Could not read routes file: ${message}`);
       return [];
     }
   }

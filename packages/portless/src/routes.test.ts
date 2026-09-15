@@ -68,6 +68,17 @@ describe("RouteStore", () => {
       expect(warnings[0]).toContain("expected array");
     });
 
+    it("calls onWarning when routes file cannot be read", () => {
+      const warnings: string[] = [];
+      const warnStore = new RouteStore(tmpDir, {
+        onWarning: (msg) => warnings.push(msg),
+      });
+      fs.mkdirSync(warnStore.getRoutesPath());
+      expect(warnStore.loadRoutes()).toEqual([]);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("Could not read routes file");
+    });
+
     it("filters out entries with invalid schema", () => {
       store.ensureDir();
       const routes = [
