@@ -496,6 +496,7 @@ portless alias <name> <port>     # Register a static route (e.g. for Docker)
 portless alias <name> <port> --force  # Overwrite an existing route
 portless alias --remove <name>   # Remove a static route
 portless list                    # Show active routes
+portless list --json             # Print active routes as JSON (for scripts)
 portless doctor                  # Check proxy, routes, DNS, and CA trust
 portless trust                   # Add local CA to system trust store
 portless clean                   # Remove state, CA trust entry, and hosts block
@@ -520,8 +521,37 @@ portless service install         # Start HTTPS proxy when the OS starts
 portless service install --lan   # Start service in LAN mode
 portless service install --wildcard  # Persist wildcard routing in the service
 portless service status          # Show service and proxy status
+portless service status --json   # Service and proxy status as JSON
 portless service uninstall       # Remove the startup service
 ```
+
+### JSON output
+
+`list`, `get`, `doctor`, and `service status` accept `--json` for scripts and agents. Other commands reject the flag.
+
+- stdout carries only the JSON document, without colors. Warnings and errors go to stderr, and a command that fails exits non-zero.
+- Keys are camelCase, like `routes.json` and `portless.json`. Optional fields are omitted when unset.
+
+```bash
+portless list --json
+# [
+#   {
+#     "hostname": "myapp.localhost",
+#     "pathPrefix": "/api",
+#     "port": 4123,
+#     "pid": 51234,
+#     "alias": false,
+#     "url": "https://myapp.localhost/api"
+#   }
+# ]
+```
+
+| Command                          | Output                                                                                                                                                                                                                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `portless list --json`           | Array of the routes the proxy serves (live processes and aliases): `hostname`, `pathPrefix`, `port` (the app's port), `pid` (`0` for an alias), `alias`, `url`, and `tailscaleUrl` or `ngrokUrl` when shared. A routes file that cannot be read or parsed exits 1 instead of printing `[]`. |
+| `portless get <name> --json`     | `name`, `hostname`, `pathPrefix`, `url`, `proxyPort`, `tls`. Like `get`, it builds the URL without checking whether the service is running.                                                                                                                                                 |
+| `portless doctor --json`         | `version`, `node`, `platform`, `arch`, `stateDir`, `proxyPort`, `tls`, `tlds`, `lanMode`, `findings` (each with `status`, `message`, `hint`), `failures`, `warnings`. Exits 1 when a check fails, like `doctor`.                                                                            |
+| `portless service status --json` | `installed`, `managerState`, `proxyPort`, `proxyRunning`, `tls`, `tlds`, `lanMode`, `lanIp`, `wildcard`, `stateDir`, `serviceEntry`.                                                                                                                                                        |
 
 ### Options
 

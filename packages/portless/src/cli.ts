@@ -93,6 +93,9 @@ import {
   writeTldFile,
   writeTldsFile,
   writeTlsMarker,
+  JSON_OUTPUT_COMMANDS,
+  printJson,
+  supportsJsonOutput,
 } from "./cli-utils.js";
 import {
   attemptCATrustRemovalForCleanup,
@@ -1096,6 +1099,36 @@ function listRoutes(store: RouteStore, proxyPort: number, tls: boolean): void {
   console.log();
 }
 
+/**
+ * `portless list --json`: the routes `portless list` shows, with their public
+ * URLs. A routes file that cannot be read or parsed is an error (exit 1), so
+ * callers can tell it apart from having no routes.
+ */
+function listRoutesJson(dir: string, proxyPort: number, tls: boolean): void {
+  let loadError: string | undefined;
+  const store = new RouteStore(dir, {
+    onWarning: (msg) => {
+      loadError = msg;
+    },
+  });
+  const routes = store.loadRoutes().map((route) => ({
+    hostname: route.hostname,
+    pathPrefix: route.pathPrefix,
+    port: route.port,
+    pid: route.pid,
+    alias: route.pid === 0,
+    url: formatUrl(route.hostname, proxyPort, tls, route.pathPrefix),
+    tailscaleUrl: route.tailscaleUrl ? `${route.tailscaleUrl}${route.pathPrefix ?? ""}` : undefined,
+    ngrokUrl: route.ngrokUrl ? `${route.ngrokUrl}${route.pathPrefix ?? ""}` : undefined,
+  }));
+  if (loadError) {
+    console.error(colors.red(`Error: ${loadError}`));
+    process.exitCode = 1;
+    return;
+  }
+  printJson(routes);
+}
+
 type EnsureProxyResult =
   | { started: true; state: Awaited<ReturnType<typeof discoverState>> }
   | { started: false };
@@ -2084,6 +2117,7 @@ ${colors.bold("Options:")}
   --ngrok                       Share the app publicly via ngrok
   --force                       Kill the existing process and take over its route
   --name <name>                 Use <name> as the app name (bypasses subcommand dispatch)
+  --json                        Print JSON (list, get, doctor, service status)
   --                            Stop flag parsing; everything after is passed to the child
 
 ${colors.bold("Environment variables:")}
@@ -2388,15 +2422,19 @@ ${colors.bold("Options:")}
   );
 }
 
-async function handleList(): Promise<void> {
+async function handleList(options: { json: boolean }): Promise<void> {
   const { dir, port, tls } = await discoverState();
+  if (options.json) {
+    listRoutesJson(dir, port, tls);
+    return;
+  }
   const store = new RouteStore(dir, {
     onWarning: (msg) => console.warn(colors.yellow(msg)),
   });
   listRoutes(store, port, tls);
 }
 
-async function handleGet(args: string[]): Promise<void> {
+async function handleGet(args: string[], options: { json: boolean }): Promise<void> {
   if (args[1] === "--help" || args[1] === "-h") {
     console.log(`
 ${colors.bold("portless get")} - Print the URL for a service.
@@ -2413,6 +2451,7 @@ together:
 ${colors.bold("Options:")}
   --no-worktree          Skip worktree prefix detection
   --path <prefix>        Include a path prefix in the URL
+  --json                 Print the URL and its parts as JSON
   --help, -h             Show this help
 
 ${colors.bold("Examples:")}
@@ -2439,7 +2478,7 @@ ${colors.bold("Examples:")}
       pathPrefix = parsePathPrefixOrExit(args[i]);
     } else if (args[i].startsWith("-")) {
       console.error(colors.red(`Error: Unknown flag "${args[i]}".`));
-      console.error(colors.blue("Known flags: --no-worktree, --path, --help"));
+      console.error(colors.blue("Known flags: --no-worktree, --path, --json, --help"));
       process.exit(1);
     } else {
       positional.push(args[i]);
@@ -2462,6 +2501,10 @@ ${colors.bold("Examples:")}
   const { port, tls, tlds } = await discoverState();
   const hostname = buildHostnames(effectiveName, tlds)[0]!;
   const url = formatUrl(hostname, port, tls, pathPrefix);
+  if (options.json) {
+    printJson({ name, hostname, pathPrefix, url, proxyPort: port, tls });
+    return;
+  }
   // Print bare URL to stdout so it works in $(portless get <name>)
   process.stdout.write(url + "\n");
 }
@@ -2751,7 +2794,7 @@ function doctorProxyStartHint(proxyPort: number, tls: boolean): string {
   return `Run: portless proxy start${portArgs}${tlsArgs}`;
 }
 
-async function handleDoctor(args: string[]): Promise<void> {
+async function handleDoctor(args: string[], options: { json: boolean }): Promise<void> {
   if (args[1] === "--help" || args[1] === "-h") {
     console.log(`
 ${colors.bold("portless doctor")} - Check local portless health and print suggested fixes.
@@ -2764,6 +2807,7 @@ trust, hostname resolution, and LAN mode prerequisites. It does not start,
 stop, clean, prune, trust, or modify portless state.
 
 ${colors.bold("Options:")}
+  --json                 Print the report as JSON
   --help, -h             Show this help
 `);
     process.exit(0);
@@ -2817,16 +2861,18 @@ ${colors.bold("Options:")}
   const proxyUsesCustomCert = proxyTls && readCustomCertMarker(state.dir);
   const stateExists = fs.existsSync(state.dir);
 
-  console.log(colors.blue.bold("\nportless doctor\n"));
-  console.log(`Version: ${__VERSION__}`);
-  console.log(`Node.js: ${process.versions.node}`);
-  console.log(`Platform: ${process.platform} ${process.arch}`);
-  console.log(`State dir: ${state.dir}`);
-  console.log(`Proxy target: ${formatUrl("127.0.0.1", proxyPort, proxyTls)}`);
-  console.log(
-    `Mode: ${proxyTls ? "HTTPS" : "HTTP"}, ${formatTldList(state.tlds)}${state.lanMode ? ", LAN" : ""}`
-  );
-  console.log("");
+  if (!options.json) {
+    console.log(colors.blue.bold("\nportless doctor\n"));
+    console.log(`Version: ${__VERSION__}`);
+    console.log(`Node.js: ${process.versions.node}`);
+    console.log(`Platform: ${process.platform} ${process.arch}`);
+    console.log(`State dir: ${state.dir}`);
+    console.log(`Proxy target: ${formatUrl("127.0.0.1", proxyPort, proxyTls)}`);
+    console.log(
+      `Mode: ${proxyTls ? "HTTPS" : "HTTP"}, ${formatTldList(state.tlds)}${state.lanMode ? ", LAN" : ""}`
+    );
+    console.log("");
+  }
 
   const nodeMajor = parseInt(process.versions.node.split(".")[0], 10);
   if (nodeMajor >= 24) {
@@ -3059,12 +3105,33 @@ ${colors.bold("Options:")}
     }
   }
 
+  const failures = findings.filter((finding) => finding.status === "fail").length;
+  const warnings = findings.filter((finding) => finding.status === "warn").length;
+
+  if (options.json) {
+    printJson({
+      version: __VERSION__,
+      node: process.versions.node,
+      platform: process.platform,
+      arch: process.arch,
+      stateDir: state.dir,
+      proxyPort,
+      tls: proxyTls,
+      tlds: state.tlds,
+      lanMode: state.lanMode,
+      findings,
+      failures,
+      warnings,
+    });
+    // exitCode rather than exit() so a piped stdout is flushed first.
+    if (failures > 0) process.exitCode = 1;
+    return;
+  }
+
   for (const finding of findings) {
     printDoctorFinding(finding);
   }
 
-  const failures = findings.filter((finding) => finding.status === "fail").length;
-  const warnings = findings.filter((finding) => finding.status === "warn").length;
   console.log("");
   if (failures > 0) {
     console.log(
@@ -4453,7 +4520,7 @@ async function main() {
     process.exit(1);
   }
 
-  const globalBooleanFlags = new Set(["--lan", "--tailscale", "--funnel", "--ngrok"]);
+  const globalBooleanFlags = new Set(["--lan", "--tailscale", "--funnel", "--ngrok", "--json"]);
   const globalValueFlags = new Set(["--ip", INTERNAL_LAN_IP_FLAG, "--script"]);
   const childlessCommands = new Set([
     "--help",
@@ -4582,6 +4649,15 @@ async function main() {
   }
   const globalScript = typeof scriptResult === "string" ? scriptResult : undefined;
 
+  // --json: machine-readable output, only for the commands that print JSON.
+  const jsonOutput = stripGlobalFlag("--json", false) === true;
+  if (jsonOutput && !supportsJsonOutput(args)) {
+    console.error(
+      colors.red(`Error: --json is only supported by ${JSON_OUTPUT_COMMANDS.join(", ")}.`)
+    );
+    process.exit(1);
+  }
+
   // --name flag: treat the next arg as an explicit app name, bypassing
   // subcommand dispatch. Useful when the app name collides with a reserved
   // subcommand (run, alias, hosts, list, doctor, trust, clean, prune, proxy, service).
@@ -4677,15 +4753,15 @@ async function main() {
       return;
     }
     if (args[0] === "list") {
-      await handleList();
+      await handleList({ json: jsonOutput });
       return;
     }
     if (args[0] === "doctor") {
-      await handleDoctor(args);
+      await handleDoctor(args, { json: jsonOutput });
       return;
     }
     if (args[0] === "get") {
-      await handleGet(args);
+      await handleGet(args, { json: jsonOutput });
       return;
     }
     if (args[0] === "alias") {
@@ -4701,7 +4777,7 @@ async function main() {
       return;
     }
     if (args[0] === "service") {
-      await handleService(args, { entryScript: getEntryScript() });
+      await handleService(args, { entryScript: getEntryScript(), json: jsonOutput });
       return;
     }
   }

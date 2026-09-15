@@ -11,6 +11,7 @@ import {
   getProtocolPort,
   isProxyRunning,
   parseTldList,
+  printJson,
 } from "./cli-utils.js";
 import { isMdnsSupported } from "./mdns.js";
 import { fixOwnership, resolveUserHome } from "./utils.js";
@@ -1175,9 +1176,29 @@ async function getServiceStatus(
   };
 }
 
-async function printServiceStatus(entryScript: string, runner: CommandRunner): Promise<void> {
+async function printServiceStatus(
+  entryScript: string,
+  runner: CommandRunner,
+  json: boolean
+): Promise<void> {
   const status = await getServiceStatus(entryScript, runner);
   const config = status.config;
+  if (json) {
+    printJson({
+      installed: status.installed,
+      managerState: status.managerState,
+      proxyPort: config.proxyPort,
+      proxyRunning: status.proxyRunning,
+      tls: config.useHttps,
+      tlds: config.lanMode ? ["local"] : config.tlds,
+      lanMode: config.lanMode,
+      lanIp: config.lanIpExplicit && config.lanIp ? config.lanIp : undefined,
+      wildcard: config.useWildcard,
+      stateDir: config.stateDir,
+      serviceEntry: status.details,
+    });
+    return;
+  }
   console.log(colors.bold("portless service"));
   console.log(`  Manager state: ${status.managerState}`);
   console.log(`  Installed: ${status.installed ? "yes" : "no"}`);
@@ -1207,6 +1228,7 @@ ${colors.bold("Usage:")}
   ${colors.cyan("portless service install -p 8443")}     Use a custom proxy port
   ${colors.cyan("portless service uninstall")}           Stop and remove the startup service
   ${colors.cyan("portless service status")}              Show service and proxy status
+  ${colors.cyan("portless service status --json")}       Print service and proxy status as JSON
 
 ${colors.bold("Install options:")}
   -p, --port <number>              Port for the proxy service
@@ -1230,7 +1252,7 @@ ${colors.bold("Notes:")}
 
 export async function handleService(
   args: string[],
-  options: { entryScript: string; runner?: CommandRunner }
+  options: { entryScript: string; runner?: CommandRunner; json?: boolean }
 ): Promise<void> {
   const action = args[1];
   const runner = options.runner || defaultRunner;
@@ -1250,7 +1272,7 @@ export async function handleService(
       return;
     }
     if (action === "status") {
-      await printServiceStatus(options.entryScript, runner);
+      await printServiceStatus(options.entryScript, runner, options.json ?? false);
       return;
     }
 
