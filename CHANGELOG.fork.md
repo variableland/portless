@@ -2,17 +2,29 @@
 
 Release notes for `@variablelab/portless`. Upstream's own history is in [CHANGELOG.md](./CHANGELOG.md).
 
-## 0.0.3
+## 0.0.4
 
 <!-- release:start -->
+
+Based on upstream [portless v0.15.6](https://github.com/vercel-labs/portless/releases/tag/v0.15.6) (upstream `main` at `1ad573b`), the same base as 0.0.3.
+
+### Added
+
+- **JSON output for scripts and agents**: `--json` on `portless list`, `portless get`, `portless doctor`, and `portless service status`. stdout carries only the JSON document, warnings and errors go to stderr, keys are camelCase, and other commands reject the flag. `list --json` returns the routes the proxy serves (live processes and aliases) with their public URLs, and exits 1 when `routes.json` cannot be read or parsed instead of printing an empty list. See the JSON output section of the README. Added in [#6](https://github.com/variableland/portless/pull/6).
+
+### Changed
+
+- When `routes.json` cannot be read (for example because of file permissions), commands now print a warning on stderr instead of silently treating it as empty.
+
+<!-- release:end -->
+
+## 0.0.3
 
 Based on upstream [portless v0.15.6](https://github.com/vercel-labs/portless/releases/tag/v0.15.6) (upstream `main` at `1ad573b`), the same base as 0.0.2.
 
 ### Fixed
 
 - **Wildcard subdomains go to the closest registered parent**: with `--wildcard`, when several registered hostnames are parents of a request (for example `acme.localhost` and `feat-x.acme.localhost` for `tenant.feat-x.acme.localhost`), the closest one now serves it regardless of registration order, and a longer `--path` prefix on a farther parent no longer takes the request from it. If the closest parent has no route for the path, the proxy answers 404 instead of falling through to a farther parent. Upstream issue [vercel-labs/portless#380](https://github.com/vercel-labs/portless/issues/380), fixed in [#4](https://github.com/variableland/portless/pull/4).
-
-<!-- release:end -->
 
 ## 0.0.2
 
